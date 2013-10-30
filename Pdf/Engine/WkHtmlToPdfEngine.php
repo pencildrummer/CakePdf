@@ -10,7 +10,16 @@ class WkHtmlToPdfEngine extends AbstractPdfEngine {
  * @var string
  */
 	protected $binary = '/usr/bin/wkhtmltopdf';
-
+	
+	
+/**
+ * Temporary internal var to save html file before conversion
+ *
+ * @access protected
+ * @var string
+ */
+	protected $tmp = null;
+	
 /**
  * Constructor
  *
@@ -26,8 +35,9 @@ class WkHtmlToPdfEngine extends AbstractPdfEngine {
  * @return string raw pdf data
  */
 	public function output() {
-		$content = $this->_exec($this->_getCommand(), $this->_Pdf->html());
-
+		
+		$content = $this->_exec($this->_getCommand( $this->_Pdf->html() ) );
+		
 		if (strpos(mb_strtolower($content['stderr']), 'error')) {
 			throw new CakeException("System error <pre>" . $content['stderr'] . "</pre>");
 		}
@@ -50,9 +60,10 @@ class WkHtmlToPdfEngine extends AbstractPdfEngine {
  * @param string $input
  * @return string the result of running the command to generate the pdf
  */
-	protected function _exec($cmd, $input) {
+	protected function _exec($cmd, $input = '') {
+	
 		$result = array('stdout' => '', 'stderr' => '', 'return' => '');
-
+		
 		$proc = proc_open($cmd, array(0 => array('pipe', 'r'), 1 => array('pipe', 'w'), 2 => array('pipe', 'w')), $pipes);
 		fwrite($pipes[0], $input);
 		fclose($pipes[0]);
@@ -64,6 +75,11 @@ class WkHtmlToPdfEngine extends AbstractPdfEngine {
 		fclose($pipes[2]);
 
 		$result['return'] = proc_close($proc);
+		
+		// Remove temp file
+		
+		if (file_exists($this->tmp))
+			unlink($this->tmp);
 
 		return $result;
 	}
@@ -73,7 +89,23 @@ class WkHtmlToPdfEngine extends AbstractPdfEngine {
  *
  * @return string the command for generating the pdf
  */
-	protected function _getCommand() {
+	protected function _getCommand($inputContent) {
+	
+		// Build temp file
+		
+		if (!file_exists(TMP . 'pdf'))
+			mkdir(TMP . 'pdf');
+		
+		do{
+			$this->tmp = TMP .'pdf' . DS . mt_rand() . '.html';
+		} while(file_exists($this->tmp));
+		
+		// Save contents in temp file
+		
+		file_put_contents($this->tmp, $inputContent);
+		
+		// Create command string
+		
 		$binary = $this->config('binary');
 
 		if ($binary) {
@@ -110,7 +142,10 @@ class WkHtmlToPdfEngine extends AbstractPdfEngine {
 				$command .= sprintf(' --%s %s', $key, escapeshellarg($value));
 			}
 		}
-		$command .= " - -";
+		
+		// Set source input file
+		$command .= " ".$this->tmp;
+		$command .= " -";
 
 		return $command;
 	}
