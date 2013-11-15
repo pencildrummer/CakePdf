@@ -22,7 +22,10 @@ class MpdfEngine extends AbstractPdfEngine {
 	public function output() {
 		//mPDF often produces a whole bunch of errors, although there is a pdf created when debug = 0
 		//Configure::write('debug', 0);
-		$MPDF = new mPDF();
+		$format = $this->_Pdf->pageSize();
+		if ($this->_Pdf->orientation() == 'landscape')
+			$format .= '-L';
+		$MPDF = new mPDF($this->_Pdf->encoding(), $format);
 		$MPDF->writeHTML($this->_Pdf->html());
 		return $MPDF->Output('', 'S');
 	}
